@@ -7,19 +7,21 @@ import nu.mine.mosher.mopper.ArgParser;
 import java.io.BufferedInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 import static nu.mine.mosher.logging.Jul.log;
-import static nu.mine.mosher.logging.Jul.thrown;
 
 // Created by Christopher Alan Mosher on 2017-08-27
 
 public class GedcomRestoreIds implements Gedcom.Processor {
     private final GedcomRestoreIdsOptions options;
     private GedcomTree tree;
-    private final Map<String, String> mapNewIdToRefn = new HashMap<>(4096);
-    private final Map<String, String> mapRefnToOldId = new HashMap<>(4096);
+
+
+
+    private final List<Heuristic> hs = new ArrayList<>(4096);
+
+
 
     public static void main(final String... args) throws InvalidLevel, IOException {
         log();
@@ -29,107 +31,78 @@ public class GedcomRestoreIds implements Gedcom.Processor {
         System.err.flush();
     }
 
+
+
     private GedcomRestoreIds(final GedcomRestoreIdsOptions options) {
         this.options = options;
+        this.options.refs.forEach(ref -> this.hs.add(new Heuristic(ref)));
     }
+
+
 
     @Override
     public boolean process(final GedcomTree tree) {
-        this.tree = tree;
         try {
+            this.tree = tree;
             getOldIds();
             getNewIds();
-            remapIds(this.tree.getRoot());
+            remapIds();
+            return true;
         } catch (final Throwable e) {
             throw new IllegalStateException(e);
         }
-        return true;
-    }
-
-    private void getNewIds() {
-        tree.getRoot().forEach(n -> readRefnAndId(n, false));
-        log().info("Loaded "+Integer.toString(this.mapNewIdToRefn.size())+" REFNs from new GEDCOM");
     }
 
     private void getOldIds() throws IOException, InvalidLevel {
         final GedcomTree source = Gedcom.readFile(new BufferedInputStream(new FileInputStream(this.options.source)));
         new GedcomConcatenator(source).concatenate();
-        source.getRoot().forEach(n -> readRefnAndId(n, true));
-        log().info("Loaded "+Integer.toString(this.mapRefnToOldId.size())+" REFNs from "+this.options.source.getCanonicalPath());
+        getIds(source, true);
     }
 
-    private void readRefnAndId(final TreeNode<GedcomLine> nodeTop, final boolean old) {
-        final GedcomLine lineTop = nodeTop.getObject();
-        if (!lineTop.hasID()) {
-            return;
-        }
-
-        final TreeNode<GedcomLine> nodeRefn = findChildNode(nodeTop, GedcomTag.REFN);
-        if (nodeRefn == null) {
-            log().warning("Could not find REFN for: "+lineTop);
-            return;
-        }
-
-        final String refn = nodeRefn.getObject().getValue();
-        if (refn.isEmpty()) {
-            log().warning("REFN is empty, for : "+lineTop);
-            return;
-        }
-
-        if (old && this.mapRefnToOldId.containsKey(refn)) {
-            log().warning("Duplicate REFN found: "+refn);
-            return;
-        }
-
-        if (old) {
-            this.mapRefnToOldId.put(refn, lineTop.getID());
-        } else {
-            this.mapNewIdToRefn.put(lineTop.getID(), refn);
-        }
+    private void getNewIds() throws IOException {
+        getIds(this.tree, false);
     }
 
-    private void remapIds(final TreeNode<GedcomLine> node) {
-        node.forEach(this::remapIds);
-
-        final GedcomLine gedcomLine = node.getObject();
-        if (gedcomLine == null) {
-            return;
-        }
-
-        if (gedcomLine.hasID()) {
-            final String refn = this.mapNewIdToRefn.get(gedcomLine.getID());
-            if (refn == null) {
-                log().warning("Cannot find REFN for ID in new file: "+gedcomLine);
-            } else {
-                final String idOld = this.mapRefnToOldId.get(refn);
-                if (idOld == null) {
-                    log().warning("Cannot find REFN for ID in old file: "+refn);
-                } else {
-                    node.setObject(new GedcomLine(gedcomLine.getLevel(), "@"+idOld+"@", gedcomLine.getTagString(), gedcomLine.getValue()));
-                }
-            }
-        } else if (gedcomLine.isPointer()) {
-            final String refn = this.mapNewIdToRefn.get(gedcomLine.getPointer());
-            if (refn == null) {
-                log().warning("Cannot find REFN for ID in new file: "+gedcomLine);
-            } else {
-                final String idOld = this.mapRefnToOldId.get(refn);
-                if (idOld == null) {
-                    log().warning("Cannot find REFN for ID in old file: " + refn);
-                } else {
-                    // assume that no line with a pointer also has an ID (true in GEDCOM 5.5.1)
-                    node.setObject(new GedcomLine(gedcomLine.getLevel(), "", gedcomLine.getTagString(), "@" + idOld + "@"));
-                }
-            }
-        }
+    private void getIds(final GedcomTree tree, final boolean old) throws IOException {
+        this.hs.forEach(h -> h.getRef().forEach(tree, n -> put(h, n, old)));
     }
 
-    private static TreeNode<GedcomLine> findChildNode(final TreeNode<GedcomLine> nodeParent, final GedcomTag tagChild) {
-        for (final TreeNode<GedcomLine> c : nodeParent) {
-            if (c.getObject().getTag().equals(tagChild)) {
-                return c;
+
+    private void remapIds() {
+        this.tree.getRoot().forAll(node -> {
+            final GedcomLine gedcomLine = node.getObject();
+            if (gedcomLine == null || !gedcomLine.isLink()) {
+                return;
+            }
+
+            final String idOld = findBestOldIdForNewId(gedcomLine.getLink());
+            if (idOld.isEmpty()) {
+                return;
+            }
+
+            node.setObject(gedcomLine.replaceLink(idOld));
+            log().warning("Replacing "+gedcomLine.getLink()+" with "+idOld);
+        });
+    }
+
+    private String findBestOldIdForNewId(final String idNew) {
+        for (final Heuristic h : this.hs) {
+            final String idOld = h.find(idNew);
+            if (!idOld.isEmpty()) {
+                return idOld;
             }
         }
-        return null;
+        return "";
+    }
+
+    private static boolean put(final Heuristic h, final TreeNode<GedcomLine> n, final boolean old) {
+        return h.put(findContainingRecord(n).getObject().getID(), n.getObject().getValue(), old);
+    }
+
+    private static TreeNode<GedcomLine> findContainingRecord(final TreeNode<GedcomLine> n) {
+        if (n.parent().parent() == null) {
+            return n;
+        }
+        return findContainingRecord(n.parent());
     }
 }
