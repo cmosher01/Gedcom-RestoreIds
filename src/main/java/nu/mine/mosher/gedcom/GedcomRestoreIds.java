@@ -20,6 +20,7 @@ public class GedcomRestoreIds implements Gedcom.Processor {
 
 
     private final List<Heuristic> hs = new ArrayList<>(4096);
+    private final Set<String> setId = new HashSet<>(4096, 1);
 
 
 
@@ -61,6 +62,11 @@ public class GedcomRestoreIds implements Gedcom.Processor {
 
     private void getNewIds() throws IOException {
         getIds(this.tree, false);
+        this.tree.getRoot().forAll(n -> {
+            if (n.getObject() != null && n.getObject().hasID()) {
+                this.setId.add(n.getObject().getID());
+            }
+        });
     }
 
     private void getIds(final GedcomTree tree, final boolean old) throws IOException {
@@ -89,14 +95,26 @@ public class GedcomRestoreIds implements Gedcom.Processor {
         for (final Heuristic h : this.hs) {
             final String idOld = h.find(idNew);
             if (!idOld.isEmpty()) {
+                if (idAlreadyExists(idOld)) {
+                    return "";
+                }
                 return idOld;
             }
         }
         return "";
     }
 
+    private boolean idAlreadyExists(final String id) {
+        return this.setId.contains(id);
+    }
+
     private static boolean put(final Heuristic h, final TreeNode<GedcomLine> n, final boolean old) {
-        return h.put(findContainingRecord(n).getObject().getID(), n.getObject().getValue(), old);
+        return h.put(findContainingRecord(n).getObject().getID(), getValue(n), old);
+    }
+
+    private static String getValue(final TreeNode<GedcomLine> n) {
+        final GedcomLine line = n.getObject();
+        return line.isPointer() ? line.getPointer() : line.getValue();
     }
 
     private static TreeNode<GedcomLine> findContainingRecord(final TreeNode<GedcomLine> n) {
