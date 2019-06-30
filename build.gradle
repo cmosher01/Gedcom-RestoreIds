@@ -4,13 +4,10 @@ apply plugin: 'application'
 group 'nu.mine.mosher.gedcom'
 version '1.0.0-SNAPSHOT'
 mainClassName = 'nu.mine.mosher.gedcom.GedcomRestoreIds'
-sourceCompatibility = 1.8
 
 repositories {
     mavenCentral()
-    maven {
-        url 'http://mosher.mine.nu/nexus/repository/maven-public/'
-    }
+    jcenter()
 }
 
 dependencies {
