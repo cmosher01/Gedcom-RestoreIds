@@ -85,7 +85,7 @@ public class GedcomRestoreIds implements Gedcom.Processor {
             }
 
             node.setObject(gedcomLine.replaceLink(idOld));
-            log().warning("Replacing "+gedcomLine.getLink()+" with "+idOld);
+            log().fine("Replacing "+gedcomLine.getLink()+" with "+idOld);
         });
     }
 
