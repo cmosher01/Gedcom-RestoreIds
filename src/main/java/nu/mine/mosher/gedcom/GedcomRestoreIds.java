@@ -4,9 +4,7 @@ import nu.mine.mosher.collection.TreeNode;
 import nu.mine.mosher.gedcom.exception.InvalidLevel;
 import nu.mine.mosher.mopper.ArgParser;
 
-import java.io.BufferedInputStream;
-import java.io.FileInputStream;
-import java.io.IOException;
+import java.io.*;
 import java.util.*;
 
 import static nu.mine.mosher.logging.Jul.log;

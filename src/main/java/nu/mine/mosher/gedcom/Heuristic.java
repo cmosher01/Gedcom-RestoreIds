@@ -1,11 +1,6 @@
 package nu.mine.mosher.gedcom;
 
-import nu.mine.mosher.collection.TreeNode;
-
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import static nu.mine.mosher.logging.Jul.log;
 

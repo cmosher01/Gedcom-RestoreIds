@@ -1,9 +1,7 @@
 package nu.mine.mosher.gedcom;
 
-import java.io.File;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.io.*;
+import java.util.*;
 
 @SuppressWarnings({"access", "WeakerAccess", "unused"})
 public class GedcomRestoreIdsOptions extends GedcomOptions {
@@ -30,7 +28,7 @@ public class GedcomRestoreIdsOptions extends GedcomOptions {
     public void gedcom(final String file) throws IOException {
         this.source = new File(file);
         if (!this.source.canRead()) {
-            throw new IllegalArgumentException("Cannot read GEDCOM input file: "+this.source.getCanonicalPath());
+            throw new IllegalArgumentException("Cannot read GEDCOM input file: " + this.source.getCanonicalPath());
         }
     }
 

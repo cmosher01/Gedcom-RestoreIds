@@ -5,6 +5,10 @@ group 'nu.mine.mosher.gedcom'
 version '1.0.0-SNAPSHOT'
 mainClassName = 'nu.mine.mosher.gedcom.GedcomRestoreIds'
 
+java {
+    sourceCompatibility = JavaVersion.VERSION_11
+}
+
 repositories {
     mavenCentral()
     jcenter()
