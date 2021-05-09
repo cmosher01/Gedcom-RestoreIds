@@ -10,6 +10,7 @@ import java.util.*;
 import static nu.mine.mosher.logging.Jul.log;
 
 // Created by Christopher Alan Mosher on 2017-08-27
+// TODO at least log ERROR message if creating a file with duplicate IDs
 
 public class GedcomRestoreIds implements Gedcom.Processor {
     private final GedcomRestoreIdsOptions options;
